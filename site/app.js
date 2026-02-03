@@ -34,12 +34,18 @@ function handleSearch(query) {
     }
     
     resultsContainer.innerHTML = results.map(result => `
-        <div class="search-result-item" onclick="goToSearchResult('${result.docId}', '${escapeHtml(query)}')">
+        <div class="search-result-item" data-doc-id="${result.docId}" data-query="${escapeHtml(query)}" onclick="handleResultClick(this)">
             <div class="doc-title">${result.title}</div>
             <div class="match-text">${result.snippet}</div>
         </div>
     `).join('');
     resultsContainer.classList.add('active');
+}
+
+function handleResultClick(element) {
+    const docId = element.dataset.docId;
+    const query = element.dataset.query;
+    goToSearchResult(docId, query);
 }
 
 function searchDocuments(query) {
@@ -86,7 +92,7 @@ function goToSearchResult(docId, query) {
     // Highlight search terms in document
     setTimeout(() => {
         highlightSearchTerms(query);
-    }, 100);
+    }, 50);
 }
 
 function highlightSearchTerms(query) {
@@ -94,11 +100,68 @@ function highlightSearchTerms(query) {
     if (!content || !query) return;
     
     // Remove existing highlights
-    content.querySelectorAll('.search-highlight').forEach(el => {
-        el.outerHTML = el.textContent;
+    content.querySelectorAll('.search-highlight').forEach(mark => {
+        const parent = mark.parentNode;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+        parent.normalize();
     });
-    
-    // This is a simplified highlight - for production you'd want TreeWalker
+
+    if (!query.trim()) return;
+
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedQuery, 'gi');
+
+    const treeWalker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(node) {
+            if (node.parentElement.tagName === 'SCRIPT' || 
+                node.parentElement.tagName === 'STYLE' || 
+                node.parentElement.classList.contains('search-highlight')) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+
+    const nodeList = [];
+    while(treeWalker.nextNode()) nodeList.push(treeWalker.currentNode);
+
+    let firstMatch = null;
+
+    nodeList.forEach(node => {
+        const text = node.textContent;
+        if (!regex.test(text)) return;
+        
+        regex.lastIndex = 0;
+        
+        const fragment = document.createDocumentFragment();
+        let lastIndex = 0;
+        let match;
+        let found = false;
+        
+        while ((match = regex.exec(text)) !== null) {
+            found = true;
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+            
+            const mark = document.createElement('mark');
+            mark.className = 'search-highlight';
+            mark.textContent = match[0];
+            fragment.appendChild(mark);
+            
+            if (!firstMatch) firstMatch = mark;
+            
+            lastIndex = regex.lastIndex;
+        }
+        
+        if (found) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+            node.parentNode.replaceChild(fragment, node);
+        }
+    });
+
+    if (firstMatch) {
+        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 }
 
 function escapeHtml(text) {

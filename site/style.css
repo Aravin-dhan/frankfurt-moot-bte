@@ -197,6 +197,20 @@ body.sidebar-collapsed .sidebar {
     border-radius: 2px;
 }
 
+.search-highlight {
+    background: var(--highlight-yellow);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+    animation: highlight-pulse 2s 3;
+}
+
+@keyframes highlight-pulse {
+    0% { background-color: var(--highlight-yellow); }
+    50% { background-color: rgba(253, 224, 71, 0.9); }
+    100% { background-color: var(--highlight-yellow); }
+}
+
 .nav-content {
     flex: 1;
     overflow-y: auto;
