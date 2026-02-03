@@ -80,7 +80,8 @@ PDF_DOCUMENTS = {
         "file": "MCC-Award-1932.12.03.pdf",
         "title": "MCC Award (3 Dec 1932)",
         "category": "mcc_decisions",
-        "order": 9
+        "order": 9,
+        "text_file": "mcc_award_1932_text.txt"
     },
     "mcc_award_1933": {
         "file": "MCC-Award-1933.12.15.pdf",
