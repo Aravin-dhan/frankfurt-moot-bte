@@ -70,6 +70,7 @@ def format_1932_award():
             # OCR Fixes/Cleanups
             para = text.replace("\n", " ").strip()
             para = para.replace("Honoiable", "Honorable")
+            para = para.replace("Blark Tom", "Black Tom")
             
             # Fix hyphenation (e.g. "re- hear") -> "rehear"
             para = re.sub(r'(\w)-\s+(\w)', r'\1\2', para)
@@ -91,24 +92,25 @@ def format_1932_award():
         
     # Merge blocks that are likely split paragraphs
     merged_paras = []
+    headers = ["Kingsland", "Black Tom"]
+    
     if content_blocks:
         current_para = content_blocks[0]
         
         for next_block in content_blocks[1:]:
-            # Heuristic for merging:
-            # If current_para ends with a word char, comma, or hyphen (not . ! ? :)
-            # OR if next_block starts with lowercase
-            # We assume it should be merged.
-            
             strip_current = current_para.strip()
             if not strip_current:
                 current_para = next_block
                 continue
-                
-            ends_incomplete = strip_current[-1] not in ['.', '!', '?', ':', '"', "”", ')']
-            # Special case: "Mr." or "No." ends with dot but is not end of sentence.
-            # But usually PDF blocks break at end of page/column which might cut mid-sentence.
             
+            # Check if current is a header (explicit list)
+            if strip_current in headers:
+                merged_paras.append(current_para)
+                current_para = next_block
+                continue
+
+            # Heuristic for merging:
+            ends_incomplete = strip_current[-1] not in ['.', '!', '?', ':', '"', "”", ')']
             starts_lowercase = next_block.strip() and next_block.strip()[0].islower()
             
             if ends_incomplete or starts_lowercase:
@@ -125,17 +127,11 @@ def format_1932_award():
         clean_block = block.strip()
         if not clean_block: continue
         
-        # Don't number the "Signatures" or headers if they look like headers
-        # Heuristic: headers usually distinct. But user wants "paragraph numbers".
-        # I'll number everything that looks like a paragraph.
-        # Maybe skip "Certificate of Disagreement..." title?
-        
-        # Check if it is a Title (short, all caps or Title Case without period?)
-        # But user said "use paragaph numbers". Usually applies to body text.
-        # I'll number everything to be safe, or start numbering after the initial header?
-        
-        final_text.append(f"[{para_count}] {clean_block}\n\n")
-        para_count += 1
+        if clean_block in headers:
+            final_text.append(f"{clean_block}\n\n")
+        else:
+            final_text.append(f"[{para_count}] {clean_block}\n\n")
+            para_count += 1
 
     with open(output_txt, "w", encoding="utf-8") as f:
         f.writelines(final_text)
