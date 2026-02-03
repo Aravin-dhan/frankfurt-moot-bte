@@ -471,16 +471,19 @@ def format_generic_document(text, doc_id):
             i += 1
             continue
         
-        # Detect main title (all caps, short)
-        if line.isupper() and 3 < len(line) < 80:
-            if any(kw in line for kw in ['ARTICLE', 'CHAPTER', 'PART', 'SECTION', 'TITLE', 'DECISION', 'AWARD', 'TREATY', 'AGREEMENT', 'RULE', 'DECREE']):
+        # Detect Explicit Headers (User requested "Kingsland", "Black Tom" etc)
+        # Also generic main titles (all caps, short)
+        is_explicit = line in ["Kingsland", "Black Tom", "The Herrmann Message", "DECISION", "DECISION OF THE UMPIRE", "Blark Tom"]
+        
+        if is_explicit or (line.isupper() and 3 < len(line) < 100 and any(kw in line for kw in ['ARTICLE', 'CHAPTER', 'PART', 'SECTION', 'TITLE', 'DECISION', 'AWARD', 'TREATY', 'AGREEMENT', 'RULE', 'DECREE'])):
+            if any(kw in line for kw in ['ARTICLE', 'CHAPTER']):
                 html_parts.append(f'<h2 class="doc-h2">{line}</h2>')
             else:
                 html_parts.append(f'<h3 class="doc-h3">{line}</h3>')
             i += 1
             continue
         
-        # Article/Section headers
+        # Article/Section headers (Regex)
         article_match = re.match(r'^(Article|Section|Rule|Chapter|Part)\s+(\d+|[IVXLC]+)\.?\s*(.*)', line, re.IGNORECASE)
         if article_match:
             num_part = f"{article_match.group(1)} {article_match.group(2)}"
@@ -492,20 +495,35 @@ def format_generic_document(text, doc_id):
             i += 1
             continue
         
-        # Numbered paragraphs
-        numbered_match = re.match(r'^(\d+)\.\s+(.*)$', line)
-        if numbered_match:
-            num = numbered_match.group(1)
-            content = numbered_match.group(2)
+        # Numbered paragraphs: "1. " OR "[1] "
+        bracket_match = re.match(r'^\[(\d+)\]\s*(.*)$', line)
+        dot_match = re.match(r'^(\d+)\.\s+(.*)$', line)
+        
+        if bracket_match or dot_match:
+            match = bracket_match or dot_match
+            num = match.group(1)
+            content = match.group(2)
+            display_num = f"[{num}]" if bracket_match else f"{num}."
+            
+            # Accumulate multi-line paragraph
             j = i + 1
-            while j < len(lines) and lines[j].strip() and not re.match(r'^\d+\.\s+', lines[j].strip()) and not lines[j].strip().isupper():
-                content += ' ' + lines[j].strip()
+            while j < len(lines):
+                next_line = lines[j].strip()
+                if not next_line: break
+                
+                # Check for starts of new items
+                if re.match(r'^\[\d+\]', next_line) or re.match(r'^\d+\.', next_line): break
+                if re.match(r'^(Article|Section|Rule)', next_line, re.IGNORECASE): break
+                if next_line in ["Kingsland", "Black Tom"]: break
+                
+                content += ' ' + next_line
                 j += 1
-            html_parts.append(f'<div class="para-block" id="para-{doc_id}-{num}"><span class="para-num">{num}.</span><p>{content}</p></div>')
+            
+            html_parts.append(f'<div class="para-block" id="para-{doc_id}-{num}"><span class="para-num">{display_num}</span><p>{content}</p></div>')
             i = j
             continue
         
-        # Sub-items
+        # Sub-items (a), (1), etc.
         paren_match = re.match(r'^\(([a-z0-9ivx]+)\)\s+(.*)$', line, re.IGNORECASE)
         if paren_match:
             num = paren_match.group(1)
@@ -517,8 +535,14 @@ def format_generic_document(text, doc_id):
         # Regular paragraph
         content = line
         j = i + 1
-        while j < len(lines) and lines[j].strip() and not re.match(r'^\d+\.\s+', lines[j].strip()) and not lines[j].strip().isupper():
-            content += ' ' + lines[j].strip()
+        while j < len(lines):
+            next_line = lines[j].strip()
+            if not next_line: break
+            if re.match(r'^\[\d+\]', next_line) or re.match(r'^\d+\.', next_line): break
+            if re.match(r'^(Article|Section|Rule)', next_line, re.IGNORECASE): break
+            if next_line in ["Kingsland", "Black Tom"]: break
+            
+            content += ' ' + next_line
             j += 1
         html_parts.append(f'<p>{content}</p>')
         i = j
